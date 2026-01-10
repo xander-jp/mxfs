@@ -1,0 +1,11 @@
+cff-version: 1.2.0 message: "If you use this software in your research, please cite the following work." title: "MXFS: Temporal-Locality-Optimized Log-Structured File System" version: "0.1.0" date-released: "2025-10"
+
+authors:
+
+family-names: Sugisawa given-names: Yosuke affiliation: Xander, LLC email: yosuke.sugisawa.xander@gmail.com
+
+family-names: Sugisawa given-names: Daisuke affiliation: Xander, LLC email: daisuke.sugisawa.xander@gmail.com
+
+repository-code: "https://github.com/xander-jp/mxfs" url: "https://github.com/xander-jp/mxfs"
+
+preferred-citation: type: article title: "A Hardware-Assisted Log-Structured File System with Temporal Locality Optimization under Resource Constraints" authors: - family-names: Sugisawa given-names: Yosuke - family-names: Sugisawa given-names: Daisuke doi: "10.20944/preprints202510.1893.v1" year: 2025 publisher: "Preprints.org"
