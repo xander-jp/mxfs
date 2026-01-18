@@ -4,9 +4,9 @@ brew install icarus-verilog gtkwave
 ```
 # run
 ```
-iverilog -s mxfs_fast_tb -o sim.out fsm_fast.v fsm_slow.v fsm_tb.v && vvp sim.out && \
-iverilog -s mxfs_slow_tb -o sim.out fsm_fast.v fsm_slow.v fsm_tb.v && vvp sim.out && \
-iverilog -s mxfs_fast_slow_pattern_a_tb -o sim.out fsm_fast.v fsm_slow.v fsm_tb.v && vvp sim.out
+iverilog -s mxfs_fast_tb -o sim.out fsm_fast.v fsm_slow.v fsm_selector.v fsm_tb.v && vvp sim.out && \
+iverilog -s mxfs_slow_tb -o sim.out fsm_fast.v fsm_slow.v fsm_selector.v fsm_tb.v && vvp sim.out && \
+iverilog -s mxfs_fast_slow_pattern_a_tb -o sim.out fsm_fast.v fsm_slow.v fsm_selector.v fsm_tb.v && vvp sim.out
 ```
 
 # Related

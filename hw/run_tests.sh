@@ -15,7 +15,7 @@ FAIL=0
 run_test() {
     local name=$1
     echo "--- $name ---"
-    if iverilog -s "$name" -o sim.out fsm_fast.v fsm_slow.v fsm_tb.v 2>&1; then
+    if iverilog -s "$name" -o sim.out fsm_fast.v fsm_slow.v fsm_selector.v fsm_tb.v 2>&1; then
         if vvp sim.out 2>&1 | grep -q "ALL PASS"; then
             echo "✓ $name: PASS"
             ((PASS++))

@@ -230,11 +230,18 @@ module mxfs_fast_slow_pattern_a_tb;
   reg  [31:0] debug_status_slow_ingress;
   wire [31:0] debug_status_slow_egress;
 
-  // ピンQ: out_ctrl1_fast, out_ctrl1_slow の論理
+  // ピンQ: ムーアマシンベースのセレクタ
   // L,L→H / H,L→H / L,H→L / H,H→H
-  // Q = out_ctrl1_fast | !out_ctrl1_slow
+  // グリッチ抑制・決定論的な所有権切り替え
   wire        pin_q;
-  assign pin_q = out_ctrl1_fast | ~out_ctrl1_slow;
+
+  mxfs_selector uut_selector (
+    .clk(clk_fast),
+    .rst_n(rst_n_fast),
+    .out_ctrl1_fast(out_ctrl1_fast),
+    .out_ctrl1_slow(out_ctrl1_slow),
+    .q(pin_q)
+  );
 
   // クロスドメイン接続
   // out_ctrl0_fast → in_ctrl_slow
@@ -394,11 +401,18 @@ module mxfs_fast_slow_pattern_b_tb;
   wire        out_ctrl1_slow;              // 外部HW Selector に接続
   wire [31:0] debug_status_egress_slow;
 
-  // ピンQ: out_ctrl1_fast, out_ctrl1_slow の論理
+  // ピンQ: ムーアマシンベースのセレクタ
   // L,L→H / H,L→H / L,H→L / H,H→H
-  // Q = out_ctrl1_fast | !out_ctrl1_slow
+  // グリッチ抑制・決定論的な所有権切り替え
   wire        pin_q;
-  assign pin_q = out_ctrl1_fast | ~out_ctrl1_slow;
+
+  mxfs_selector uut_selector (
+    .clk(clk_fast),
+    .rst_n(rst_n_fast),
+    .out_ctrl1_fast(out_ctrl1_fast),
+    .out_ctrl1_slow(out_ctrl1_slow),
+    .q(pin_q)
+  );
 
   // クロスドメイン接続
   // in_ctrl(fast) ← out_ctrl0_slow
@@ -529,12 +543,13 @@ module mxfs_fast_slow_pattern_b_tb;
     // out_ctrl0_fast=L, out_ctrl0_slow=L (ソフトウェア制御)
     // -> in_ctrl(fast)=L, in_ctrl(slow)=L
     // -> VALID 時 out_ctrl1_fast=L, out_ctrl1_slow=L
+    // ムーアマシン同期化遅延を考慮（2段FF + 状態 + 出力レジスタ）
     //
     $display("");
     $display("[TEST 1] L,L -> expect Q=H");
     debug_status_ingress_fast[0] = 1'b0;  // out_ctrl0_fast = L
     debug_status_ingress_slow[0] = 1'b0;  // out_ctrl0_slow = L
-    wait_cycle_fast(1000);  // 反映待ち (slow clock用に十分待つ)
+    wait_cycle_fast(1010);  // 反映待ち (slow clock用に十分待つ + セレクタ遅延)
     check_pin_q(1'b1, 1'b0, 1'b0, "L,L");
 
     //
@@ -554,7 +569,7 @@ module mxfs_fast_slow_pattern_b_tb;
     $display("[TEST 2] H,L -> expect Q=H");
     debug_status_ingress_fast[0] = 1'b0;  // out_ctrl0_fast = L -> in_ctrl(slow) = L -> out_ctrl1_slow = L
     debug_status_ingress_slow[0] = 1'b1;  // out_ctrl0_slow = H -> in_ctrl(fast) = H -> out_ctrl1_fast = H
-    wait_cycle_fast(1000);  // 反映待ち (slow clock用に十分待つ)
+    wait_cycle_fast(1010);  // 反映待ち (slow clock用に十分待つ + セレクタ遅延)
     check_pin_q(1'b1, 1'b1, 1'b0, "H,L");
 
     //
@@ -567,7 +582,7 @@ module mxfs_fast_slow_pattern_b_tb;
     $display("[TEST 3] L,H -> expect Q=L");
     debug_status_ingress_fast[0] = 1'b1;  // out_ctrl0_fast = H -> in_ctrl(slow) = H -> out_ctrl1_slow = H
     debug_status_ingress_slow[0] = 1'b0;  // out_ctrl0_slow = L -> in_ctrl(fast) = L -> out_ctrl1_fast = L
-    wait_cycle_fast(1000);  // 反映待ち (slow clock用に十分待つ)
+    wait_cycle_fast(1010);  // 反映待ち (slow clock用に十分待つ + セレクタ遅延)
     check_pin_q(1'b0, 1'b0, 1'b1, "L,H");
 
     //
@@ -580,7 +595,7 @@ module mxfs_fast_slow_pattern_b_tb;
     $display("[TEST 4] H,H -> expect Q=H");
     debug_status_ingress_fast[0] = 1'b1;  // out_ctrl0_fast = H
     debug_status_ingress_slow[0] = 1'b1;  // out_ctrl0_slow = H
-    wait_cycle_fast(1000);  // 反映待ち (slow clock用に十分待つ)
+    wait_cycle_fast(1010);  // 反映待ち (slow clock用に十分待つ + セレクタ遅延)
     check_pin_q(1'b1, 1'b1, 1'b1, "H,H");
 
     $display("");
