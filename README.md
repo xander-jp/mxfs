@@ -137,6 +137,116 @@ SPI bus ownership is switched dynamically between domains.
 
 ---
 
+## Hardware FSM Architecture
+
+The SPI bus ownership arbitration is implemented as a **Moore machine** — the output `Q` depends only on the current state, not directly on input signal changes. This ensures **glitch-free, deterministic** bus ownership switching.
+
+### Modules
+
+| Module | File | Role |
+|---|---|---|
+| `mxfs_fast` | `hw/fsm_fast.v` | Fast domain FSM (100-cycle transitions) |
+| `mxfs_slow` | `hw/fsm_slow.v` | Slow domain FSM (200-cycle transitions) |
+| `mxfs_selector` | `hw/fsm_selector.v` | Moore machine bus ownership selector |
+
+### Per-Domain FSM State Transitions (`mxfs_fast` / `mxfs_slow`)
+
+Both `mxfs_fast` and `mxfs_slow` share the same 4-state Moore machine structure.
+The only difference is the counter threshold (fast: 100 cycles, slow: 200 cycles).
+
+```
+          ┌──────────────────────────────────────────────────┐
+          │              Asynchronous Reset                   │
+          │          (upl_arst_n = L → INIT)                 │
+          └──────────────┬───────────────────────────────────┘
+                         ▼
+                  ┌─────────────┐
+                  │    INIT     │  out_ctrl1 = L
+                  │   (4'd1)    │
+                  └──────┬──────┘
+                         │ counter >= threshold
+                         ▼
+                  ┌─────────────┐
+                  │  READY_0    │  out_ctrl1 = L
+                  │   (4'd2)    │
+                  └──────┬──────┘
+                         │ counter >= threshold
+                         ▼
+                  ┌─────────────┐
+                  │  READY_1    │  out_ctrl1 = H
+                  │   (4'd3)    │
+                  └──────┬──────┘
+                         │ counter >= threshold
+                         ▼
+                  ┌─────────────┐
+                  │   VALID     │  out_ctrl1 = in_ctrl
+                  │   (4'd4)    │  (terminal state)
+                  └─────────────┘
+```
+
+* `out_ctrl0` — Software-controlled via `debug_status_ingress[0]`
+* `out_ctrl1` — Determined by FSM state; in `VALID`, follows `in_ctrl`
+* Threshold: `mxfs_fast` = 100 cycles, `mxfs_slow` = 200 cycles
+
+### Bus Ownership Selector (`mxfs_selector`) — Moore Machine
+
+`mxfs_selector` takes `out_ctrl1` from each domain and produces a single output `Q` that determines bus ownership.
+Input synchronization uses a **2-stage flip-flop** for metastability mitigation across clock domains.
+
+**State Table:**
+
+| State | `out_ctrl1_fast` | `out_ctrl1_slow` | Q | Bus Owner |
+|:---:|:---:|:---:|:---:|:---|
+| S0 | L | L | **H** | Mother (fast domain) |
+| S1 | H | L | **H** | Mother (fast domain) |
+| S2 | L | H | **L** | Child (slow domain) |
+| S3 | H | H | **H** | Mother (fast domain) |
+
+**Design rationale:**
+* The Child (slow domain) acquires the bus **only** when `out_ctrl1_slow = H` and `out_ctrl1_fast = L` (state S2)
+* In all other cases, including contention (`H, H`), the Mother (fast domain) retains ownership
+* Output `Q` is registered, guaranteeing **glitch-free** operation on the bus select line
+* On reset, `Q = H` (Mother owns the bus)
+
+### Cross-Domain Connection
+
+```
+  ┌──────────┐                          ┌──────────┐
+  │mxfs_fast │  out_ctrl0_fast ───────► │mxfs_slow │
+  │          │ ◄─────── out_ctrl0_slow  │          │
+  │          │                          │          │
+  │  out_ctrl1_fast ──┐    ┌── out_ctrl1_slow     │
+  └──────────┘        │    │            └──────────┘
+                      ▼    ▼
+                ┌──────────────┐
+                │mxfs_selector │
+                │ (Moore FSM)  │
+                └──────┬───────┘
+                       │
+                       ▼
+                    Q (Bus Select)
+                  H = Mother (fast)
+                  L = Child  (slow)
+```
+
+* `out_ctrl0` of each domain is cross-connected to `in_ctrl` of the other domain
+* `out_ctrl1` of each domain feeds into `mxfs_selector`
+
+### Verification Status
+
+Logic verification has been completed via Verilog testbench (`hw/fsm_tb.v`):
+
+| Testbench | Description | Result |
+|---|---|---|
+| `mxfs_fast_tb` | Fast domain unit test (INIT→READY_0→READY_1→VALID) | PASS |
+| `mxfs_slow_tb` | Slow domain unit test (INIT→READY_0→READY_1→VALID) | PASS |
+| `mxfs_fast_slow_pattern_a_tb` | Cross-domain integration (pin Q logic table) | PASS |
+| `mxfs_fast_slow_pattern_b_tb` | Software-controlled `out_ctrl0` + all 4 Q states | PASS |
+
+> **Note:** The hardware FSM is currently verified in simulation only. Physical implementation on FPGA/ASIC is planned for future work.
+
+---
+
 ## Research Background
 
 This implementation is based on the accompanying research paper, which provides:
@@ -169,6 +279,7 @@ If you use this work, please cite:
 
 * Core concepts validated via prototype
 * Software-based arbitration used in PoC
-* Full hardware FSM implementation planned for future work
+* **Moore machine FSM for bus ownership arbitration: logic verified via Verilog testbench**
+* Physical hardware FSM implementation (FPGA/ASIC) planned for future work
 
 Contributions and discussions are welcome.
